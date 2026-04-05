@@ -1,8 +1,8 @@
 {
   "name": "demo_backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Express backend for the ShelfSpace React project",
+  "main": "app.js",
   "scripts": {
     "dev": "nodemon app.js",
     "start": "node app.js",

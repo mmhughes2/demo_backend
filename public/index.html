@@ -1,18 +1,69 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <link rel="stylessheet" href="styles.css">
-    </head>
-    <body>
-        <h1>Shelfspace</h1>
-        <h2>See All Books</h2>
-        <p><a href="/api/books">/api/books</a></p>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ShelfSpace API</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero">
+        <p class="eyebrow">ShelfSpace Backend</p>
+        <h1>ShelfSpace API</h1>
+        <p class="hero-copy">
+          This server powers the ShelfSpace React app. Use the endpoints below to
+          load the live book collection and individual book details from Render.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="/api/books">View All Books</a>
+          <a class="button button-secondary" href="/api/books/2">Open Sample Book</a>
+        </div>
+      </section>
 
-        <h2>Get individual Books</h2>
-        <p><a href="/api/books/1">/api/books/1</a></p>
+      <section class="content-grid">
+        <article class="card">
+          <h2>Available Endpoints</h2>
+          <div class="endpoint-list">
+            <a class="endpoint" href="/api">
+              <span class="method">GET</span>
+              <span class="path">/api</span>
+              <span class="description">API summary and endpoint list</span>
+            </a>
+            <a class="endpoint" href="/api/books">
+              <span class="method">GET</span>
+              <span class="path">/api/books</span>
+              <span class="description">Returns the full ShelfSpace book collection</span>
+            </a>
+            <a class="endpoint" href="/api/books/1">
+              <span class="method">GET</span>
+              <span class="path">/api/books/:id</span>
+              <span class="description">Returns one book by its numeric ID</span>
+            </a>
+          </div>
+        </article>
 
-        <h2>Get individual Immages</h2>
-        <p><a href="/images/app-preview1.png">/images/app.preview1.png</a></p>
-        
-    </body>
+        <article class="card preview-card">
+          <div class="preview-copy">
+            <h2>Collection Preview</h2>
+            <p>
+              Your frontend can fetch these endpoints and turn them into cards,
+              modals, or detail pages. The sample data already includes book
+              metadata, ratings, descriptions, features, formats, and image paths.
+            </p>
+            <ul class="checklist">
+              <li>Responsive API landing page</li>
+              <li>Live JSON routes for all books and individual books</li>
+              <li>Static images served from the backend</li>
+            </ul>
+          </div>
+          <img
+            class="preview-image"
+            src="/images/books.png"
+            alt="ShelfSpace collection preview"
+          />
+        </article>
+      </section>
+    </main>
+  </body>
 </html>

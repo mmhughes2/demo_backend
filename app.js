@@ -1,101 +1,84 @@
 const express = require("express");
 const cors = require("cors");
-const multer = require("multer");
+
 const app = express();
-app.use(express.static("public"));
-app.use(express.json());
-app.use(cors());
+const PORT = process.env.PORT || 3001;
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, "./public/images/");
-    },
-    filename: (req, file, cb) => {
-      cb(null, file.originalname);
-    },
-  });
-  
-const upload = multer({ storage: storage });
-
-  let books = [
+const books = [
   {
-    "_id": 1,
-    "title": "The Midnight Library",
-    "author": "Matt Haig",
-    "genre": "Contemporary Fantasy",
-    "page_count": 304,
-    "rating": 4.2,
-    "features": [
-      "book club favorite",
-      "reflective storytelling"
-    ],
-    "main_image": "midnight-library.jpg",
-    "formats": [
-      {
-        "type": "Hardcover",
-        "isbn": "9780525559474"
-      },
-      {
-        "type": "Paperback",
-        "isbn": "9780143135135"
-      }
+    _id: 1,
+    title: "The Midnight Library",
+    author: "Matt Haig",
+    genre: "Contemporary Fantasy",
+    publication_year: 2020,
+    page_count: 304,
+    rating: 4.2,
+    main_image: "/images/books.png",
+    description:
+      "A reflective novel about second chances, parallel lives, and choosing what matters most.",
+    features: ["Book club favorite", "Reflective storytelling", "Accessible prose"],
+    formats: [
+      { type: "Hardcover", isbn: "9780525559474", price: "$18.99" },
+      { type: "Paperback", isbn: "9780143135135", price: "$13.99" }
     ]
   },
   {
-    "_id": 2,
-    "title": "Project Hail Mary",
-    "author": "Andy Weir",
-    "genre": "Science Fiction",
-    "page_count": 496,
-    "rating": 4.7,
-    "features": [
-      "fast-paced adventure",
-      "first contact story"
-    ],
-    "main_image": "project-hail-mary.jpg",
-    "formats": [
-      {
-        "type": "Hardcover",
-        "isbn": "9780593135204"
-      },
-      {
-        "type": "Audiobook",
-        "isbn": "9780593455203"
-      }
+    _id: 2,
+    title: "Project Hail Mary",
+    author: "Andy Weir",
+    genre: "Science Fiction",
+    publication_year: 2021,
+    page_count: 496,
+    rating: 4.7,
+    main_image: "/images/app-preview1.png",
+    description:
+      "A high-stakes space survival story full of science puzzles, humor, and surprising heart.",
+    features: ["Fast-paced adventure", "First contact story", "STEM-driven plot"],
+    formats: [
+      { type: "Hardcover", isbn: "9780593135204", price: "$22.00" },
+      { type: "Audiobook", isbn: "9780593455203", price: "$19.99" }
     ]
   },
   {
-    "_id": 3,
-    "title": "Tomorrow, and Tomorrow, and Tomorrow",
-    "author": "Gabrielle Zevin",
-    "genre": "Literary Fiction",
-    "page_count": 416,
-    "rating": 4.3,
-    "features": [
-      "character-driven",
-      "gaming industry backdrop",
-      "multi-decade timeline"
-    ],
-    "main_image": "tomorrow-and-tomorrow.jpg",
-    "formats": [
-      {
-        "type": "Hardcover",
-        "isbn": "9780593321201"
-      },
-      {
-        "type": "eBook",
-        "isbn": "9780593321218"
-      }
+    _id: 3,
+    title: "Tomorrow, and Tomorrow, and Tomorrow",
+    author: "Gabrielle Zevin",
+    genre: "Literary Fiction",
+    publication_year: 2022,
+    page_count: 416,
+    rating: 4.3,
+    main_image: "/images/app-preview2.png",
+    description:
+      "A character-driven story about friendship, ambition, creativity, and the world of game design.",
+    features: ["Character-driven", "Gaming industry backdrop", "Emotional arc"],
+    formats: [
+      { type: "Hardcover", isbn: "9780593321201", price: "$20.99" },
+      { type: "eBook", isbn: "9780593321218", price: "$12.99" }
     ]
   }
-]
+];
 
-app.get("/api/books",(req,res)=>{
+app.use(cors());
+app.use(express.json());
+app.use(express.static("public"));
+
+app.get("/api", (req, res) => {
+  res.send({
+    name: "ShelfSpace API",
+    version: "1.0.0",
+    endpoints: {
+      allBooks: "/api/books",
+      bookById: "/api/books/:id"
+    }
+  });
+});
+
+app.get("/api/books", (req, res) => {
   res.send(books);
 });
 
-app.get("/api/books/:id", (req,res)=>{
-  const requestedBook = books.find((b) => b._id === parseInt(req.params.id, 10));
+app.get("/api/books/:id", (req, res) => {
+  const requestedBook = books.find((book) => book._id === Number(req.params.id));
 
   if (!requestedBook) {
     return res.status(404).send({ message: "Book not found" });
@@ -104,8 +87,6 @@ app.get("/api/books/:id", (req,res)=>{
   res.send(requestedBook);
 });
 
-// listen for incoming requests
-app.listen(3001, ()=>{
-  console.log("Server is up and running");
-  
+app.listen(PORT, () => {
+  console.log(`ShelfSpace server is running on port ${PORT}`);
 });
