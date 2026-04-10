@@ -1,10 +1,38 @@
 const express = require("express");
 const cors = require("cors");
 const Joi = require("joi");
+const multer = require("multer");
+const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const DEFAULT_COVER = "/images/books.png";
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, "public", "images"));
+  },
+  filename: (req, file, cb) => {
+    const extension = path.extname(file.originalname || "").toLowerCase();
+    const safeBaseName = path
+      .basename(file.originalname || "cover", extension)
+      .replace(/[^a-zA-Z0-9-_]/g, "-")
+      .toLowerCase();
+
+    cb(null, `${Date.now()}-${safeBaseName || "cover"}${extension}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      return cb(null, true);
+    }
+
+    cb(new Error("Only image files are allowed"));
+  }
+});
 
 let books = [
   {
@@ -237,7 +265,7 @@ const bookSchema = Joi.object({
   publication_year: Joi.number().integer().min(1000).max(new Date().getFullYear() + 1).required(),
   page_count: Joi.number().integer().min(1).max(5000).required(),
   rating: Joi.number().min(0).max(5).precision(1).required(),
-  main_image: Joi.string().trim().min(3).max(300).required(),
+  main_image: Joi.string().trim().min(3).max(300).optional(),
   description: Joi.string().trim().min(10).max(600).required(),
   features: Joi.array().items(Joi.string().trim().min(2).max(80)).min(1).required(),
   formats: Joi.array()
@@ -256,6 +284,39 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
 
+function parseMaybeJson(value, fallback = value) {
+  if (typeof value !== "string") {
+    return value ?? fallback;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function normalizeBookInput(body, file) {
+  const normalized = {
+    ...body,
+    publication_year: Number(body.publication_year),
+    page_count: Number(body.page_count),
+    rating: Number(body.rating),
+    main_image: file ? `/images/${file.filename}` : body.main_image,
+    features: parseMaybeJson(body.features, body.features),
+    formats: parseMaybeJson(body.formats, body.formats)
+  };
+
+  if (typeof normalized.features === "string") {
+    normalized.features = normalized.features
+      .split(",")
+      .map((feature) => feature.trim())
+      .filter(Boolean);
+  }
+
+  return normalized;
+}
+
 app.get("/api", (req, res) => {
   res.send({
     name: "ShelfSpace API",
@@ -263,7 +324,8 @@ app.get("/api", (req, res) => {
     endpoints: {
       allBooks: "/api/books",
       bookById: "/api/books/:id",
-      createBook: "/api/books"
+      createBook: "/api/books",
+      deleteBook: "/api/books/:id"
     }
   });
 });
@@ -282,8 +344,8 @@ app.get("/api/books/:id", (req, res) => {
   res.send(requestedBook);
 });
 
-app.post("/api/books", (req, res) => {
-  const validationResult = bookSchema.validate(req.body, {
+app.post("/api/books", upload.single("cover"), (req, res) => {
+  const validationResult = bookSchema.validate(normalizeBookInput(req.body, req.file), {
     abortEarly: false,
     stripUnknown: true
   });
@@ -307,6 +369,34 @@ app.post("/api/books", (req, res) => {
     message: "Book added successfully",
     book: newBook
   });
+});
+
+app.delete("/api/books/:id", (req, res) => {
+  const requestedId = Number(req.params.id);
+  const bookIndex = books.findIndex((book) => book._id === requestedId);
+
+  if (bookIndex === -1) {
+    return res.status(404).send({ message: "Book not found" });
+  }
+
+  const [deletedBook] = books.splice(bookIndex, 1);
+
+  res.send({
+    message: "Book removed successfully",
+    book: deletedBook
+  });
+});
+
+app.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    return res.status(400).send({ message: error.message });
+  }
+
+  if (error && error.message === "Only image files are allowed") {
+    return res.status(400).send({ message: error.message });
+  }
+
+  return next(error);
 });
 
 app.listen(PORT, () => {
