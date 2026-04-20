@@ -325,6 +325,7 @@ app.get("/api", (req, res) => {
       allBooks: "/api/books",
       bookById: "/api/books/:id",
       createBook: "/api/books",
+      updateBook: "/api/books/:id",
       deleteBook: "/api/books/:id"
     }
   });
@@ -368,6 +369,50 @@ app.post("/api/books", upload.single("cover"), (req, res) => {
   res.status(201).send({
     message: "Book added successfully",
     book: newBook
+  });
+});
+
+app.put("/api/books/:id", upload.single("cover"), (req, res) => {
+  const requestedId = Number(req.params.id);
+  const existingBook = books.find((book) => book._id === requestedId);
+
+  if (!existingBook) {
+    return res.status(404).send({ message: "Book not found" });
+  }
+
+  const validationResult = bookSchema.validate(
+    normalizeBookInput(
+      {
+        ...existingBook,
+        ...req.body,
+        main_image: req.body.main_image || existingBook.main_image
+      },
+      req.file
+    ),
+    {
+      abortEarly: false,
+      stripUnknown: true
+    }
+  );
+
+  if (validationResult.error) {
+    return res.status(400).send({
+      message: "Validation failed",
+      errors: validationResult.error.details.map((detail) => detail.message)
+    });
+  }
+
+  const updatedBook = {
+    _id: existingBook._id,
+    ...validationResult.value,
+    main_image: validationResult.value.main_image || existingBook.main_image || DEFAULT_COVER
+  };
+
+  books = books.map((book) => (book._id === requestedId ? updatedBook : book));
+
+  res.status(200).send({
+    message: "Book updated successfully",
+    book: updatedBook
   });
 });
 
