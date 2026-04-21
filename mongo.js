@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
+require("dotenv").config();
 
-//testdb is name of database, it will automatically make it
 mongoose
-  .connect("mongodb+srv://mhughes:u95jsL5oHSZ62tLo@shelfspace.myez2x0.mongodb.net/")
+  .connect(process.env.MONGODB_URI)
   .then(() => console.log("Connected to mongodb..."))
-  .catch((err) => console.error("could not connect ot mongodb...", err));
+  .catch((err) => console.error("Could not connect to mongodb...", err));
 
 const schema = new mongoose.Schema({
   name: String,
@@ -15,7 +15,7 @@ async function createMessage() {
   console.log(result);
 }
 
-//this creates a Message class in our app
+
 const Message = mongoose.model("Message", schema);
 const message = new Message({
   name: "Hello World",
