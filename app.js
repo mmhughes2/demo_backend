@@ -3,11 +3,12 @@ const cors = require("cors");
 const Joi = require("joi");
 const multer = require("multer");
 const path = require("path");
+const mongoose = require("mongoose");
+const { Book, connectToDatabase } = require("./mongo");
 
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DEFAULT_COVER = "/images/books.png";
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -35,7 +36,7 @@ const upload = multer({
   }
 });
 
-let books = [
+const seedBooks = [
   {
     _id: 1,
     title: "The Midnight Library",
@@ -266,7 +267,7 @@ const bookSchema = Joi.object({
   publication_year: Joi.number().integer().min(1000).max(new Date().getFullYear() + 1).required(),
   page_count: Joi.number().integer().min(1).max(5000).required(),
   rating: Joi.number().min(0).max(5).precision(1).required(),
-  main_image: Joi.string().trim().min(3).max(300).optional(),
+  main_image: Joi.string().trim().min(3).max(300).required(),
   description: Joi.string().trim().min(10).max(600).required(),
   features: Joi.array().items(Joi.string().trim().min(2).max(80)).min(1).required(),
   formats: Joi.array()
@@ -318,6 +319,20 @@ function normalizeBookInput(body, file) {
   return normalized;
 }
 
+async function seedBooksIfNeeded() {
+  const existingCount = await Book.countDocuments();
+
+  if (existingCount === 0) {
+    await Book.insertMany(
+      seedBooks.map(({ _id, ...book }) => book)
+    );
+  }
+}
+
+function isValidObjectId(id) {
+  return mongoose.Types.ObjectId.isValid(id);
+}
+
 app.get("/api", (req, res) => {
   res.send({
     name: "ShelfSpace API",
@@ -332,105 +347,129 @@ app.get("/api", (req, res) => {
   });
 });
 
-app.get("/api/books", (req, res) => {
-  res.send(books);
+app.get("/api/books", async (req, res, next) => {
+  try {
+    const books = await Book.find().sort({ createdAt: 1 });
+    res.send(books);
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.get("/api/books/:id", (req, res) => {
-  const requestedBook = books.find((book) => book._id === Number(req.params.id));
+app.get("/api/books/:id", async (req, res, next) => {
+  try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(404).send({ message: "Book not found" });
+    }
 
-  if (!requestedBook) {
-    return res.status(404).send({ message: "Book not found" });
+    const requestedBook = await Book.findById(req.params.id);
+
+    if (!requestedBook) {
+      return res.status(404).send({ message: "Book not found" });
+    }
+
+    res.send(requestedBook);
+  } catch (error) {
+    next(error);
   }
-
-  res.send(requestedBook);
 });
 
-app.post("/api/books", upload.single("cover"), (req, res) => {
-  const validationResult = bookSchema.validate(normalizeBookInput(req.body, req.file), {
-    abortEarly: false,
-    stripUnknown: true
-  });
-
-  if (validationResult.error) {
-    return res.status(400).send({
-      message: "Validation failed",
-      errors: validationResult.error.details.map((detail) => detail.message)
-    });
-  }
-
-  const newBook = {
-    _id: books.length ? Math.max(...books.map((book) => book._id)) + 1 : 1,
-    ...validationResult.value,
-    main_image: validationResult.value.main_image || DEFAULT_COVER
-  };
-
-  books.push(newBook);
-
-  res.status(201).send({
-    message: "Book added successfully",
-    book: newBook
-  });
-});
-
-app.put("/api/books/:id", upload.single("cover"), (req, res) => {
-  const requestedId = Number(req.params.id);
-  const existingBook = books.find((book) => book._id === requestedId);
-
-  if (!existingBook) {
-    return res.status(404).send({ message: "Book not found" });
-  }
-
-  const validationResult = bookSchema.validate(
-    normalizeBookInput(
-      {
-        ...existingBook,
-        ...req.body,
-        main_image: req.body.main_image || existingBook.main_image
-      },
-      req.file
-    ),
-    {
+app.post("/api/books", upload.single("cover"), async (req, res, next) => {
+  try {
+    const validationResult = bookSchema.validate(normalizeBookInput(req.body, req.file), {
       abortEarly: false,
       stripUnknown: true
-    }
-  );
-
-  if (validationResult.error) {
-    return res.status(400).send({
-      message: "Validation failed",
-      errors: validationResult.error.details.map((detail) => detail.message)
     });
+
+    if (validationResult.error) {
+      return res.status(400).send({
+        message: "Validation failed",
+        errors: validationResult.error.details.map((detail) => detail.message)
+      });
+    }
+
+    const newBook = await Book.create(validationResult.value);
+
+    res.status(201).send({
+      message: "Book added successfully",
+      book: newBook
+    });
+  } catch (error) {
+    next(error);
   }
-
-  const updatedBook = {
-    _id: existingBook._id,
-    ...validationResult.value,
-    main_image: validationResult.value.main_image || existingBook.main_image || DEFAULT_COVER
-  };
-
-  books = books.map((book) => (book._id === requestedId ? updatedBook : book));
-
-  res.status(200).send({
-    message: "Book updated successfully",
-    book: updatedBook
-  });
 });
 
-app.delete("/api/books/:id", (req, res) => {
-  const requestedId = Number(req.params.id);
-  const bookIndex = books.findIndex((book) => book._id === requestedId);
+app.put("/api/books/:id", upload.single("cover"), async (req, res, next) => {
+  try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(404).send({ message: "Book not found" });
+    }
 
-  if (bookIndex === -1) {
-    return res.status(404).send({ message: "Book not found" });
+    const existingBook = await Book.findById(req.params.id);
+
+    if (!existingBook) {
+      return res.status(404).send({ message: "Book not found" });
+    }
+
+    const validationResult = bookSchema.validate(
+      normalizeBookInput(
+        {
+          ...existingBook.toObject(),
+          ...req.body,
+          main_image: req.body.main_image || existingBook.main_image
+        },
+        req.file
+      ),
+      {
+        abortEarly: false,
+        stripUnknown: true
+      },
+    );
+
+    if (validationResult.error) {
+      return res.status(400).send({
+        message: "Validation failed",
+        errors: validationResult.error.details.map((detail) => detail.message)
+      });
+    }
+
+    const updatedBook = await Book.findByIdAndUpdate(
+      req.params.id,
+      validationResult.value,
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    res.status(200).send({
+      message: "Book updated successfully",
+      book: updatedBook
+    });
+  } catch (error) {
+    next(error);
   }
+});
 
-  const [deletedBook] = books.splice(bookIndex, 1);
+app.delete("/api/books/:id", async (req, res, next) => {
+  try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(404).send({ message: "Book not found" });
+    }
 
-  res.send({
-    message: "Book removed successfully",
-    book: deletedBook
-  });
+    const deletedBook = await Book.findByIdAndDelete(req.params.id);
+
+    if (!deletedBook) {
+      return res.status(404).send({ message: "Book not found" });
+    }
+
+    res.status(200).send({
+      message: "Book removed successfully",
+      book: deletedBook
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use((error, req, res, next) => {
@@ -442,9 +481,22 @@ app.use((error, req, res, next) => {
     return res.status(400).send({ message: error.message });
   }
 
-  return next(error);
+  console.error(error);
+  return res.status(500).send({ message: "Something went wrong on the server" });
 });
 
-app.listen(PORT, () => {
-  console.log(`ShelfSpace server is running on port ${PORT}`);
-});
+async function startServer() {
+  try {
+    await connectToDatabase();
+    await seedBooksIfNeeded();
+
+    app.listen(PORT, () => {
+      console.log(`ShelfSpace server is running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Unable to start server", error);
+    process.exit(1);
+  }
+}
+
+startServer();
